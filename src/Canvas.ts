@@ -5,6 +5,7 @@ import { Util } from "./Util";
 // import { Offset, Pos, GroupSelector, CurrentTransform } from './interface';
 import { EventCenter } from "./EventCenter";
 import { Point } from "./Point";
+import { CurrentTransform, GroupSelector } from "./interface";
 
 export class Canvas extends EventCenter {
   /** 画布宽度 */
@@ -22,17 +23,57 @@ export class Canvas extends EventCenter {
   /** 下层画布环境 */
   public contextContainer: CanvasRenderingContext2D;
 
+
+  public containerClass: string = 'canvas-container';
+
   public viewportTransform: number[] = [1, 0, 0, 1, 0, 0];
+
+
+  // public relatedTarget;
+  /** 选择区域框的背景颜色 */
+  public selectionColor: string = 'rgba(100, 100, 255, 0.3)';
+  /** 选择区域框的边框颜色 */
+  public selectionBorderColor: string = 'red';
+  /** 选择区域的边框大小，拖蓝的线宽 */
+  public selectionLineWidth: number = 1;
+  /** 左键拖拽的产生的选择区域，拖蓝区域 */
+  private _groupSelector: GroupSelector | null;
+  /** 当前选中的组 */
+  // public _activeGroup: Group | null;
+
+  /** 画布中所有添加的物体 */
+  // private _objects: FabricObject[];
+  // /** 整个画布到上面和左边的偏移量 */
+  // private _offset: Offset;
+  /** 当前物体的变换信息，src 目录下中有截图 */
+  private _currentTransform: CurrentTransform | null;
+  /** 当前激活物体 */
+  // private _activeObject;
+  /** 变换之前的中心点方式 */
+  // private _previousOriginX;
+  // private _previousPointer: Pos;
 
   constructor(el: HTMLCanvasElement, options = {}) {
     super();
     // 初始化下层画布 lower-canvas
+    this._cleanIfParentExist(el);
     this._initStatic(el, options);
     // 初始化上层画布 upper-canvas
     this._initInteractive();
     // 处理模糊问题
     this._initRetinaScaling();
   }
+
+  _cleanIfParentExist(el: HTMLCanvasElement){
+    const hasCreated = Util.getParentClass(el).indexOf(this.containerClass) > -1;
+    const parent = el.parentNode
+    if (hasCreated) {
+      const container = parent.parentNode
+      container.appendChild(el)
+      container.removeChild(parent)
+    }
+  }
+
   /** 初始化 _objects、lower-canvas 宽高、options 赋值 */
   _initStatic(el: HTMLCanvasElement, options) {
     this._createLowerCanvas(el);
@@ -52,7 +93,7 @@ export class Canvas extends EventCenter {
   _initRetinaScaling() {
     const dpr = window.devicePixelRatio;
     this.__initRetinaScaling(this.lowerCanvasEl, this.contextContainer, dpr);
-    // this.__initRetinaScaling(this.upperCanvasEl, this.contextTop, dpr);
+    this.__initRetinaScaling(this.upperCanvasEl, this.contextTop, dpr);
     // this.__initRetinaScaling(this.cacheCanvasEl, this.contextCache, dpr);
   }
   __initRetinaScaling(
@@ -60,7 +101,6 @@ export class Canvas extends EventCenter {
     ctx: CanvasRenderingContext2D,
     dpr: number
   ) {
-    debugger;
     const { width, height } = this;
     // 重新设置 canvas 自身宽高大小和 css 大小。放大 canvas；css 保持不变，因为我们需要那么多的点
     canvas.width = Math.round(width * dpr);
@@ -71,7 +111,35 @@ export class Canvas extends EventCenter {
     ctx.scale(dpr, dpr);
   }
   /** 初始化交互层，也就是 upper-canvas */
-  _initInteractive() {}
+  _initInteractive() {
+    this._currentTransform = null;
+    this._groupSelector = null;
+    this._initWrapperElement();
+    this._createUpperCanvas();
+    // this._initEvents();
+    // this.calcOffset();
+  }
+
+  /** 因为我们用了两个 canvas，所以在 canvas 的外面再多包一个 div 容器 */
+  _initWrapperElement() {
+    this.wrapperEl = Util.wrapElement(this.lowerCanvasEl, 'div', {
+        class: this.containerClass,
+    });
+    Util.setStyle(this.wrapperEl, {
+        width: this.width + 'px',
+        height: this.height + 'px',
+        position: 'relative',
+    });
+    Util.makeElementUnselectable(this.wrapperEl);
+  }
+  /** 创建上层画布，主要用于鼠标交互和涂鸦模式 */
+  _createUpperCanvas() {
+      this.upperCanvasEl = Util.createCanvasElement();
+      this.upperCanvasEl.className = 'upper-canvas';
+      this.wrapperEl.appendChild(this.upperCanvasEl);
+      this._applyCanvasStyle(this.upperCanvasEl);
+      this.contextTop = this.upperCanvasEl.getContext('2d');
+  }
 
   _createLowerCanvas(el: HTMLCanvasElement) {
     this.lowerCanvasEl = el;

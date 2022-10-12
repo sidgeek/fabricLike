@@ -272,6 +272,9 @@ export class Util {
             element.className += (element.className ? ' ' : '') + className;
         }
     }
+    static getParentClass(element: HTMLElement) {
+        return (element.parentNode || {} as any).className as string
+    }
     /** 计算元素偏移值 */
     static getElementOffset(element): Offset {
         let valueT = 0,
